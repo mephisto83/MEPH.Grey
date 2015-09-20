@@ -1,0 +1,43 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link href="resources/style.css" rel="stylesheet" />
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css">
+    <script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="col-md-4">
+            <img testimage src="resources/img/221_Lennareduced.jpg" class="image" />
+        </div>
+        <div class="col-md-4">
+            <canvas sketchcanvas acanvas></canvas>
+        </div>
+        <div class="col-md-4">
+            <canvas greycanvas acanvas></canvas>
+        </div>
+        <div class="col-md-4">
+            <canvas gaussiancanvas acanvas></canvas>
+        </div>
+        <div class="col-md-4">
+            <canvas samplecanvas acanvas></canvas>
+        </div>
+
+        <div class="col-md-4">
+            <canvas gaus_testimage acanvas></canvas>
+        </div>
+        <div class="col-md-4">
+            <input type="number" label="sigma" max="10000" min="1" sigma />
+        </div>
+    </div>
+    <script src="grey_app.js"></script>
+</body>
+</html>
