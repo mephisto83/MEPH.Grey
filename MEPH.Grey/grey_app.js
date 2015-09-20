@@ -75,7 +75,7 @@
         step = step || 1;
         var sa = getPixel(x1, y1, data, width, step);
         var sb = getPixel(x2, y2, data, width, step);
-        var sc = getPixel(x3, y3, data, width, step);
+        var sc = getPixel(x3, y3, data, width, step); 
         var sd = getPixel(x4, y4, data, width, step);
          
         return sa + sd - sb - sc;
