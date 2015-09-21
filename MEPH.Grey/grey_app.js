@@ -17,6 +17,7 @@
     var getTestImage = function () {
         return document.querySelector('[testimage]');
     }
+
     var getTestImageData = function () {
         var image = getTestImage();
         debugger
@@ -33,6 +34,7 @@
         var context = canvas.getContext('2d');
         return context.getImageData(0, 0, canvas.width, canvas.height);
     }
+
     var convertToGrey = function (data) {
         var greyData = new Uint8Array(data.height * data.width);
         for (var i = 0 ; i < data.height; i++) {
@@ -66,6 +68,7 @@
         step = step || 1;
         return data[(step * x) + (step * y * width)] || 0;
     }
+
     var setPixel = function (x, y, data, val, width, step) {
         step = step || 1;
         data[(step * x) + (step * y * width)] = val;
@@ -75,9 +78,9 @@
         step = step || 1;
         var sa = getPixel(x1, y1, data, width, step);
         var sb = getPixel(x2, y2, data, width, step);
-        var sc = getPixel(x3, y3, data, width, step); 
+        var sc = getPixel(x3, y3, data, width, step);
         var sd = getPixel(x4, y4, data, width, step);
-         
+
         return sa + sd - sb - sc;
     }
 
@@ -120,6 +123,8 @@
             width = options.width,
             sig = options.sig || 1.3,
             canvas = options.canvas;
+        floor = options.floor || 0;
+        func = options.gaus || gaussian;
         canvas.height = height;
         canvas.width = width;
         var white = 255;
@@ -130,7 +135,7 @@
         var array = new Uint8ClampedArray(length);
         for (var i = 0 ; i < width; i++) {
             for (var j = 0; j < height; j++) {
-                val = white * gaussian(i - width / 2, j - height / 2, sig);
+                val = (white * func(i - width / 2, j - height / 2, sig)) + floor;
                 array[(i * step) + (step * j * width)] = val;
                 array[(i * step) + (step * j * width) + 1] = val;
                 array[(i * step) + (step * j * width) + 2] = val;
@@ -142,6 +147,7 @@
         var context = canvas.getContext('2d');
         context.putImageData(imageData, 0, 0, 0, 0, width, height);
     }
+
     var draw = function (options) {
         var height = options.height,
            width = options.width,
@@ -168,6 +174,7 @@
         var context = canvas.getContext('2d');
         context.putImageData(imageData, 0, 0, 0, 0, width, height);
     }
+
     var getGaussianFilter = function (width, height, sig, real) {
         var val,
             array = new Array(width * height);
@@ -175,6 +182,24 @@
         for (var i = 0 ; i < width; i++) {
             for (var j = 0; j < height; j++) {
                 val = (real ? r_gaussian : gaussian)(i - width / 2, j - height / 2, sig);
+                array[(i) + (j * width)] = val;
+            }
+        }
+        return array;
+    }
+
+
+    var getFilter = function (options) {
+        var val,
+            width = options.width,
+            height = options.height,
+            sig = options.sig,
+            func = options.filter || gaussian,
+            array = new Array(width * height);
+
+        for (var i = 0 ; i < width; i++) {
+            for (var j = 0; j < height; j++) {
+                val = func(i - width / 2, j - height / 2, sig);
                 array[(i) + (j * width)] = val;
             }
         }
@@ -204,6 +229,12 @@
         return Math.pow(Math.E, -(Math.pow(x, 2) + Math.pow(y, 2)) / (2 * Math.pow(sig, 2)))
     }
 
+    var gaussian_xx = function (x, y, sig) {
+        var exp = (Math.pow(x, 2) + Math.pow(y, 2)) / (2 * Math.pow(sig, 2));
+        var secondpart = ((Math.pow(x, 2) / (4 * (Math.pow(Math.PI, 2)) * Math.pow(sig, 8) - (1 / (Math.pow(sig, 4) * 2 * Math.PI)))));
+        return Math.exp(-(exp)) * secondpart;
+    }
+
     var r_gaussian = function (x, y, sig) {
         return gaussian(x, y, sig) * (1 / Math.sqrt(Math.pow(sig, 2) * 2 * Math.PI));
     }
@@ -213,7 +244,7 @@
 
         for (var j = 0 ; j < sh ; j++) {
             for (var i = 0 ; i < sw; i++) {
-                var val = getPixel(Math.round(i * w / sw), Math.round(j * h / sh), data, w);
+                var val = getPixel(Math.floor(i * w / sw), Math.round(j * h / sh), data, w);
                 array[j * sw + i] = val;
             }
         }
@@ -247,12 +278,211 @@
             }
         }
         return {
-            width: greyData.width - blurSize ,
-            height: greyData.height - blurSize ,
+            width: greyData.width - blurSize,
+            height: greyData.height - blurSize,
             data: gaussedData
         }
     }
 
+    var fastHessian = function () {
+        var me = this;
+        //Calculates the filter border for an octave
+        me.getFilterDimensions = function (octave, interval) {
+            interval = interval || 1;
+            octave = octave || 1;
+            var dim = 3 * (Math.pow(2, octave) * interval + 1);
+            return {
+                height: dim,
+                width: dim
+            };
+        }
+        me.getLobeArea = function (lobe) {
+            return Math.pow(3 * lobe, 2);
+        };
+        me.getLobePositons = function (type, octave, interval) {
+            interval = interval || 1;
+            octave = octave || 1;
+            var dimensions = me.getFilterDimensions(octave, interval),
+                lobeDim,
+                results = [];
+            lobeDim = me.getLobeDimensions(type, octave, interval);
+            var hlw = Math.round(lobeDim.width / 2);
+            var hlh = Math.round(lobeDim.height / 2);
+            switch (type) {
+                case 'xx':
+                    results.push({
+                        x: hlw - 1,
+                        y: Math.round(dimensions.height / 2) - 1,
+                        high: true
+                    }, {
+                        x: hlw + lobeDim.width - 1,
+                        y: Math.round(dimensions.height / 2) - 1
+                    }, {
+                        x: hlw + (lobeDim.width * 2) - 1,
+                        y: Math.round(dimensions.height / 2) - 1,
+                        high: true
+                    });
+                    break;
+                case 'yy':
+                    results.push({
+                        x: Math.round(dimensions.width / 2) - 1,
+                        y: hlh - 1,
+                        high: true
+                    }, {
+                        x: Math.round(dimensions.width / 2) - 1,
+                        y: hlh + lobeDim.height - 1
+                    }, {
+                        x: Math.round(dimensions.width / 2) - 1,
+                        y: (hlh + lobeDim.height * 2) - 1,
+                        high: true
+                    });
+                    break;
+                case 'xy':
+                case 'yx':
+                    var quadDim = Math.round(dimensions.height / 2);
+                    var quadF = Math.floor(dimensions.height / 2);
+                    var bxp = Math.round(quadDim / 2),
+                        byp = bxp;
+                    results.push({
+                        x: bxp - 1,
+                        y: byp - 1,
+                        high: true
+                    }, {
+                        x: quadF + bxp - 1,
+                        y: byp - 1
+                    }, {
+                        x: bxp - 1,
+                        y: quadF + byp - 1,
+                        high: true
+                    }, {
+                        x: quadF + bxp - 1,
+                        y: quadF + byp - 1
+                    });
+                    break;
+            }
+            return {
+                type: type,
+                pos: results
+            }
+        }
+        me.getLobeDimensions = function (type, octave, interval) {
+            interval = interval || 1;
+            octave = octave || 1;
+            var dimensions = me.getFilterDimensions(octave, interval),
+                dimx,
+                dimy;
+
+            switch (type) {
+                case 'yy':
+                    dimy = Math.round(dimensions.height / 3);
+                    dimx = octave * interval * 2 + dimy;
+                    break;
+                case 'xx':
+                    dimx = Math.round(dimensions.width / 3);
+                    dimy = octave * interval * 2 + dimx;
+                    break;
+                case 'xy':
+                case 'yx':
+                    dimx = Math.round(dimensions.height / 3);
+                    dimy = dimx;
+                    break;
+            }
+            return {
+                type: type,
+                height: dimy,
+                width: dimx
+            }
+        };
+        var createArray = function (length) {
+            var res = [];
+            for (var i = length ; i--;) {
+                res.push(0);
+            }
+            return res;
+        }
+        me.getLobeGrid = function (type, octave, interval) {
+            var positions = me.getLobePositons(type, octave, interval).pos;
+            var dimensions = me.getLobeDimensions(type, octave, interval);
+            var filterDim = me.getFilterDimensions(octave, interval);
+            var length = filterDim.height * filterDim.width;
+
+            var array = createArray(length);
+
+            positions.forEach(function (center_pos) {
+                var x = center_pos.x;
+                var y = center_pos.y;
+                var startX = -Math.floor(dimensions.width / 2);
+                var startY = -Math.floor(dimensions.height / 2);
+                for (var i = 0 ; i < dimensions.width; i++) {
+                    for (var j = 0 ; j < dimensions.height; j++) {
+                        setPixel(startX + i + x, startY + j + y, array, center_pos.high ? 1 : .5, filterDim.width);
+                    }
+                }
+            });
+
+            return { data: array, width: filterDim.width, height: filterDim.height };
+        };
+        me.getIntegralValue = function (integralData, pt1, pt2) {
+
+            var a = getPixel(pt1.x, pt1.y, integralData.data, integralData.width);
+            var d = getPixel(pt2.x, pt2.y, integralData.data, integralData.width);
+            var b = getPixel(pt2.x, pt1.y, integralData.data, integralData.width);
+            var c = getPixel(pt1.x, pt2.y, integralData.data, integralData.width);
+
+            return d + a - b - c;
+        };
+
+        me.convolve = function (integralData, position, type, octave, interval) {
+
+            var positions = me.getLobePositons(type, octave, interval).pos;
+            var dimensions = me.getLobeDimensions(type, octave, interval);
+            var filterDim = me.getFilterDimensions(octave, interval);
+
+            var pos = {
+                x: position.x + Math.floor(filterDim.width / 2),
+                y: position.y + Math.floor(filterDim.height / 2)
+            };
+
+            var convolvesum = 0;
+            positions.forEach(function (positionInformation) {
+                var posInfo = positionInformation;
+                var pt1 = {
+                    x: posInfo.x + pos.x - Math.floor(dimensions.width / 2),
+                    y: posInfo.y + pos.y - Math.floor(dimensions.height / 2)
+                };
+                var pt2 = {
+                    x: posInfo.x + pos.x + Math.floor(dimensions.width / 2),
+                    y: posInfo.y + pos.y + Math.floor(dimensions.height / 2)
+                };
+                var val = me.getIntegralValue(integralData, pt1, pt2);
+                convolvesum += positionInformation.high ? val : -val;
+            });
+            return convolvesum / ((dimensions.width * dimensions.height) * positions.length);
+        };
+
+        return me;
+    }
+    var convoleImage = function (integralData, type, octave, interval) {
+        var hessy = fastHessian();
+        var width = integralData.width;
+        var height = integralData.height;
+        var array = new Uint8ClampedArray(width * height),
+            val;
+        var filterDim = hessy.getFilterDimensions(octave, interval);
+
+
+        for (var i = 0; i < width - filterDim.width; i++) {
+            for (var j = 0 ; j < height - filterDim.height; j++) {
+                val = hessy.convolve(integralData, { x: i, y: j }, type, octave, interval);
+                setPixel(i, j, array, val, width);
+            }
+        }
+        return {
+            width: width,
+            height: height,
+            data: array
+        };
+    }
     var normalize = function (array) {
         var sum = 0;
         array.forEach(function (t) {
@@ -263,6 +493,24 @@
         });
     }
 
+    var scale = function (array) {
+        var max = 0;
+        var min = 0;
+        array.forEach(function (t) {
+            if (t > max) {
+                max = t;
+            }
+            if (t < min) {
+                min = t;
+            }
+        });
+        if (max > 0 && min !== max) {
+            array.forEach(function (t, i) {
+                array[i] = (t - min) / (max - min);
+            });
+        }
+    }
+
     var run = function () {
         var image = getTestImage();
         var canvas = drawToSketch(image);
@@ -271,7 +519,7 @@
         var greyData = convertToGrey(data);
         var greyCanvas = getGreyCanvas();
         drawGreyToSketch(greyData, greyCanvas);
-        var mul = 1;
+        var mul = 21;
         var sig = mul * .84089642;
         var size = mul * 7;
         var sampleSize = 8;
@@ -310,9 +558,95 @@
             sig: sig,
             canvas: getCanvas('gaussiancanvas')
         });
+
+        //var g_xx = getFilter({
+        //    height: size,
+        //    width: size,
+        //    filter: gaussian_xx,
+        //    sig: 1
+        //});
+        //scale(g_xx);
+        //draw({
+        //    data: g_xx,
+        //    height: size,
+        //    width: size,
+        //    canvas: getCanvas('gaussiancanvas_xx')
+        //});
         //var filter = getGaussianFilter(sig * 6, sig * 6, sig);
         var integralData = computeIntegralImage(greyData);
 
+        var hessF = fastHessian();
+        console.log(hessF.getFilterDimensions());
+        //for (var i = 1; i < 4; i++) {
+        //    console.log(hessF.getLobeDimensions('xy', i));
+        //}
+
+        //for (var i = 1; i < 4; i++) {
+        //    console.log(hessF.getLobeDimensions('xx', i));
+        //}
+
+        //for (var i = 1; i < 4; i++) {
+        //    console.log(hessF.getLobeDimensions('xx', i, 1.5));
+        //}
+
+        //for (var i = 1; i < 4; i++) {
+        //    console.log(hessF.getLobeDimensions('yy', i));
+        //}
+        //for (var i = 1; i < 4; i++) {
+        //    console.log(hessF.getLobePositons('yy', i));
+        //}
+        //for (var i = 1; i < 4; i++) {
+        //    console.log(hessF.getLobePositons('xy', i));
+        //}
+
+        var lobArray = hessF.getLobeGrid('xy');
+        console.log(lobArray);
+        lobArray.data.forEach(function (t, i) {
+            lobArray.data[i] = t * 255;
+        });
+        var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
+
+        draw({
+            height: 400,
+            width: 400,
+            canvas: getCanvas('gaussiancanvas_xx'),
+            data: lobArraytodraw
+        });
+
+        var lobArray = hessF.getLobeGrid('yy');
+        console.log(lobArray);
+        lobArray.data.forEach(function (t, i) {
+            lobArray.data[i] = t * 255;
+        });
+        var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
+
+        draw({
+            height: 400,
+            width: 400,
+            canvas: getCanvas('samplecanvas'),
+            data: lobArraytodraw
+        });
+
+        var lobArray = hessF.getLobeGrid('xx', 3);
+        console.log(lobArray);
+        lobArray.data.forEach(function (t, i) {
+            lobArray.data[i] = t * 255;
+        });
+        var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
+
+        draw({
+            height: 400,
+            width: 400,
+            canvas: getCanvas('xxcanvas'),
+            data: lobArraytodraw
+        });
+
+        //   var res = hessF.convolve(integralData, { x: 0, y: 0 }, 'xx');
+        ['xx', 'xy', 'yy'].forEach(function (e) {
+            var imageData = convoleImage(integralData, e);
+            imageData.canvas = getCanvas('convoledcanvas_' + e);
+            draw(imageData);
+        });
     };
 
     run();
