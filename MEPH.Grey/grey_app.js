@@ -174,6 +174,16 @@
         var context = canvas.getContext('2d');
         context.putImageData(imageData, 0, 0, 0, 0, width, height);
     }
+    var drawCircle = function (canvas, point, radius) {
+        var context = canvas.getContext('2d');
+        context.beginPath();
+        context.arc(point.x, point.y, radius, 0, Math.PI * 2, false);
+        //context.fillStyle = 'green';
+        //context.fill();
+        context.lineWidth = 1;
+        context.strokeStyle = '#FFC0CB';
+        context.stroke();
+    }
 
     var getGaussianFilter = function (width, height, sig, real) {
         var val,
@@ -285,7 +295,9 @@
     }
 
     var fastHessian = function () {
-        var me = this;
+        var me = this,
+
+            approximation = .9;
         //Calculates the filter border for an octave
         me.getFilterDimensions = function (octave, interval) {
             interval = interval || 1;
@@ -352,11 +364,11 @@
                         y: byp - 1
                     }, {
                         x: bxp - 1,
-                        y: quadF + byp - 1,
-                        high: true
+                        y: quadF + byp - 1
                     }, {
                         x: quadF + bxp - 1,
-                        y: quadF + byp - 1
+                        y: quadF + byp - 1,
+                        high: true
                     });
                     break;
             }
@@ -393,13 +405,6 @@
                 width: dimx
             }
         };
-        var createArray = function (length) {
-            var res = [];
-            for (var i = length ; i--;) {
-                res.push(0);
-            }
-            return res;
-        }
         me.getLobeGrid = function (type, octave, interval) {
             var positions = me.getLobePositons(type, octave, interval).pos;
             var dimensions = me.getLobeDimensions(type, octave, interval);
@@ -420,7 +425,11 @@
                 }
             });
 
-            return { data: array, width: filterDim.width, height: filterDim.height };
+            return {
+                data: array,
+                width: filterDim.width,
+                height: filterDim.height
+            };
         };
         me.getIntegralValue = function (integralData, pt1, pt2) {
 
@@ -455,9 +464,17 @@
                     y: posInfo.y + pos.y + Math.floor(dimensions.height / 2)
                 };
                 var val = me.getIntegralValue(integralData, pt1, pt2);
-                convolvesum += positionInformation.high ? val : -val;
+                convolvesum += positionInformation.high ? -val : val;
             });
             return convolvesum / ((dimensions.width * dimensions.height) * positions.length);
+        };
+
+        me.determinant = function (integralData, position, octave, interval) {
+            var xx = me.convolve(integralData, position, 'xx', octave, interval);
+            var yy = me.convolve(integralData, position, 'yy', octave, interval);
+            var xy = me.convolve(integralData, position, 'xy', octave, interval);
+
+            return (xx * yy) - Math.pow(approximation * xy, 2);
         };
 
         return me;
@@ -482,6 +499,17 @@
             height: height,
             data: array
         };
+    }
+    var createArray = function (length, val) {
+        var res = [];
+        if (val === undefined) {
+            val = 0;
+        }
+        for (var i = length ; i--;) {
+            res.push(val);
+
+        }
+        return res;
     }
     var normalize = function (array) {
         var sum = 0;
@@ -519,6 +547,7 @@
         var greyData = convertToGrey(data);
         var greyCanvas = getGreyCanvas();
         drawGreyToSketch(greyData, greyCanvas);
+
         var mul = 21;
         var sig = mul * .84089642;
         var size = mul * 7;
@@ -528,36 +557,40 @@
         var gausSum = sum(res);
         res.forEach(function (t, i) {
             res[i] = res[i] / gausSum;
-        })
+        });
+
         var samp = sample(res, size, size, sampleSize, sampleSize);
         samp.forEach(function (t, i) {
             samp[i] = t * 255;
         });
+
         console.log(res);
         var todraw = discreteScale(samp, sampleSize, sampleSize, size, size);
 
-        draw({
-            height: size,
-            width: size,
-            canvas: getCanvas('samplecanvas'),
-            data: todraw
-        });
-        var gb = gausBlur(greyData, 1000, sampleSize);
-        gb.canvas = getCanvas('gaus_testimage');
+        //draw({
+        //    height: size,
+        //    width: size,
+        //    canvas: getCanvas('samplecanvas'),
+        //    data: todraw
+        //});
 
-        getSigma().addEventListener('change', function () {
-            var sig = getSigma();
-            var gb = gausBlur(greyData, sig.value / 100, sampleSize);
-            gb.canvas = getCanvas('gaus_testimage');
-            draw(gb);
-        });
-        draw(gb);
-        drawGaussian({
-            height: size,
-            width: size,
-            sig: sig,
-            canvas: getCanvas('gaussiancanvas')
-        });
+        //var gb = gausBlur(greyData, 1000, sampleSize);
+        //gb.canvas = getCanvas('gaus_testimage');
+        //draw(gb);
+        //var blurData = getSketchData(gb.canvas);
+
+        //getSigma().addEventListener('change', function () {
+        //    var sig = getSigma();
+        //    var gb = gausBlur(greyData, sig.value / 100, sampleSize);
+        //    gb.canvas = getCanvas('gaus_testimage');
+        //    draw(gb);
+        //});
+        //drawGaussian({
+        //    height: size,
+        //    width: size,
+        //    sig: sig,
+        //    canvas: getCanvas('gaussiancanvas')
+        //});
 
         //var g_xx = getFilter({
         //    height: size,
@@ -576,7 +609,7 @@
         var integralData = computeIntegralImage(greyData);
 
         var hessF = fastHessian();
-        console.log(hessF.getFilterDimensions());
+        //console.log(hessF.getFilterDimensions());
         //for (var i = 1; i < 4; i++) {
         //    console.log(hessF.getLobeDimensions('xy', i));
         //}
@@ -599,55 +632,164 @@
         //    console.log(hessF.getLobePositons('xy', i));
         //}
 
-        var lobArray = hessF.getLobeGrid('xy');
-        console.log(lobArray);
-        lobArray.data.forEach(function (t, i) {
-            lobArray.data[i] = t * 255;
-        });
-        var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
+        /**Gaussian Approximation XY **/
+        //var lobArray = hessF.getLobeGrid('xy');
+        //console.log(lobArray);
+        //lobArray.data.forEach(function (t, i) {
+        //    lobArray.data[i] = t * 255;
+        //});
+        //var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
 
-        draw({
-            height: 400,
-            width: 400,
-            canvas: getCanvas('gaussiancanvas_xx'),
-            data: lobArraytodraw
-        });
+        //draw({
+        //    height: 400,
+        //    width: 400,
+        //    canvas: getCanvas('gaussiancanvas_xx'),
+        //    data: lobArraytodraw
+        //});
+        /**Gaussian Approximation YY **/
+        //var lobArray = hessF.getLobeGrid('yy');
+        //console.log(lobArray);
+        //lobArray.data.forEach(function (t, i) {
+        //    lobArray.data[i] = t * 255;
+        //});
+        //var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
 
-        var lobArray = hessF.getLobeGrid('yy');
-        console.log(lobArray);
-        lobArray.data.forEach(function (t, i) {
-            lobArray.data[i] = t * 255;
-        });
-        var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
+        //draw({
+        //    height: 400,
+        //    width: 400,
+        //    canvas: getCanvas('samplecanvas'),
+        //    data: lobArraytodraw
+        //});
+        /**Gaussian Approximation XX **/
+        //var lobArray = hessF.getLobeGrid('xx', 3);
+        //console.log(lobArray);
+        //lobArray.data.forEach(function (t, i) {
+        //    lobArray.data[i] = t * 255;
+        //});
+        //var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
 
-        draw({
-            height: 400,
-            width: 400,
-            canvas: getCanvas('samplecanvas'),
-            data: lobArraytodraw
-        });
-
-        var lobArray = hessF.getLobeGrid('xx', 3);
-        console.log(lobArray);
-        lobArray.data.forEach(function (t, i) {
-            lobArray.data[i] = t * 255;
-        });
-        var lobArraytodraw = discreteScale(lobArray.data, lobArray.width, lobArray.height, 400, 400);
-
-        draw({
-            height: 400,
-            width: 400,
-            canvas: getCanvas('xxcanvas'),
-            data: lobArraytodraw
-        });
+        //draw({
+        //    height: 400,
+        //    width: 400,
+        //    canvas: getCanvas('xxcanvas'),
+        //    data: lobArraytodraw
+        //});
 
         //   var res = hessF.convolve(integralData, { x: 0, y: 0 }, 'xx');
-        ['xx', 'xy', 'yy'].forEach(function (e) {
-            var imageData = convoleImage(integralData, e);
-            imageData.canvas = getCanvas('convoledcanvas_' + e);
-            draw(imageData);
-        });
-    };
+        //['xx', 'xy', 'yy'].forEach(function (e) {
+        //    var imageData = convoleImage(integralData, e);
+        //    imageData.canvas = getCanvas('convoledcanvas_' + e);
+        //    draw(imageData);
+        //});
 
-    run();
+        var minZero = 1100;
+        var deteminantExtrenum = { max: 0, min: minZero };
+        function getDetBag(octave) {
+            var dim = hessF.getFilterDimensions(octave);
+            var detBag = createArray(integralData.width * integralData.height, null);
+            var offset = 0;// Math.floor(dim.width / 2);
+            for (var i = offset ; i < integralData.width - offset ; i++) {
+                for (var j = offset ; j < integralData.height - offset ; j++) {
+                    var res = hessF.determinant(integralData, { x: i, y: j }, octave);
+                    if (deteminantExtrenum.max < res) {
+                        //if (res > 6736) {
+                        //    debugger
+                        //}
+                        deteminantExtrenum.max = res;
+                        deteminantExtrenum.max = Math.min(res, 5000);
+                    }
+                    detBag[i + j * integralData.width] = res;
+                }
+            }
+            return detBag;
+        }
+
+        function nonMaximalSuppression(i, j, integralData, bags) {
+            var detBag;
+            //bags.forEach(function (detBag) {
+            for (var k = 1; k < bags.length - 1 ; k++) {
+                detBag = bags[k];
+                udetBag = bags[k + 1];
+                ddetBag = bags[k - 1];
+                var res = detBag[i + j * integralData.width]
+                if (minZero < res) {
+                    if (res > detBag[(i - 1) + (j - 1) * integralData.width] &&
+                        res > detBag[(i - 1) + (j) * integralData.width] &&
+                        res > detBag[(i - 1) + (j + 1) * integralData.width] &&
+                        res > detBag[(i) + (j - 1) * integralData.width] &&
+                        res > detBag[(i) + (j + 1) * integralData.width] &&
+                        res > detBag[(i + 1) + (j + 1) * integralData.width] &&
+                        res > detBag[(i + 1) + (j - 1) * integralData.width] &&
+                        res > detBag[(i + 1) + (j) * integralData.width] &&
+
+                        res > udetBag[(i - 1) + (j - 1) * integralData.width] &&
+                        res > udetBag[(i - 1) + (j) * integralData.width] &&
+                        res > udetBag[(i - 1) + (j + 1) * integralData.width] &&
+                        res > udetBag[(i) + (j - 1) * integralData.width] &&
+                        res > udetBag[(i) + (j) * integralData.width] &&
+                        res > udetBag[(i) + (j + 1) * integralData.width] &&
+                        res > udetBag[(i + 1) + (j + 1) * integralData.width] &&
+                        res > udetBag[(i + 1) + (j - 1) * integralData.width] &&
+                        res > udetBag[(i + 1) + (j) * integralData.width] &&
+
+                        res > ddetBag[(i - 1) + (j - 1) * integralData.width] &&
+                        res > ddetBag[(i - 1) + (j) * integralData.width] &&
+                        res > ddetBag[(i - 1) + (j + 1) * integralData.width] &&
+                        res > ddetBag[(i) + (j - 1) * integralData.width] &&
+                        res > ddetBag[(i) + (j) * integralData.width] &&
+                        res > ddetBag[(i) + (j + 1) * integralData.width] &&
+                        res > ddetBag[(i + 1) + (j + 1) * integralData.width] &&
+                        res > ddetBag[(i + 1) + (j - 1) * integralData.width] &&
+                        res > ddetBag[(i + 1) + (j) * integralData.width]) {
+                        return res;
+                    }
+                }
+            }
+            return false;
+        }
+
+        var bags = [];
+        for (var i = 1; i < 8; i++) {
+            bags.push(getDetBag(i));
+        }
+        var dim = hessF.getFilterDimensions(bags.length - 1)
+        //for (var i = dim.width; i < integralData.width - dim.width; i++) {
+        //    for (var j = dim.height ; j < integralData.height - dim.height; j++) {
+        //        if (nonMaximalSuppression(i, j, integralData, bags)) {
+        //            drawCircle(getCanvas('greycanvas'), { x: i, y: j }, 11);
+        //        }
+        //    }
+        //}
+        var scaleF = function (t, max, min) {
+            return (t - min) / (max - min);
+        }
+        for (var i = 0; i < integralData.width ; i++) {
+            for (var j = 0; j < integralData.height ; j++) {
+                var res = nonMaximalSuppression(i, j, integralData, bags);
+                if (res) {
+                    drawCircle(getCanvas('greycanvas'), { x: i, y: j }, Math.max(1, 100 * scaleF(res, deteminantExtrenum.max, deteminantExtrenum.min)));
+                }
+            }
+        }
+        var tempd = {
+            data: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            width: 4,
+            height: 4
+        };
+        var itempd = computeIntegralImage(tempd);
+        var val = hessF.getIntegralValue(itempd, {
+            x: 0, y: 0
+        }, {
+            x: 3, y: 1
+        });
+        var pixel = getPixel(0, 0, integralData.data, integralData.width);
+
+    };
+    var notrun = true;
+    document.querySelector('[runbtn]').addEventListener('click', function () {
+        if (notrun) {
+            run();
+            notrun = false;
+        }
+    });
 })(window);
