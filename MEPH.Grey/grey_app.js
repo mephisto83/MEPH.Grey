@@ -66,7 +66,11 @@
 
     var getPixel = function (x, y, data, width, step) {
         step = step || 1;
-        return data[(step * x) + (step * y * width)] || 0;
+        var val = data[(step * x) + (step * y * width)];
+        if (val == undefined) {
+            throw 'out of bounds';
+        }
+        return val;
     }
 
     var setPixel = function (x, y, data, val, width, step) {
@@ -254,7 +258,7 @@
 
         for (var j = 0 ; j < sh ; j++) {
             for (var i = 0 ; i < sw; i++) {
-                var val = getPixel(Math.floor(i * w / sw), Math.round(j * h / sh), data, w);
+                var val = getPixel(Math.floor(i * w / sw), Math.floor(j * h / sh), data, w);
                 array[j * sw + i] = val;
             }
         }
@@ -448,8 +452,8 @@
             var filterDim = me.getFilterDimensions(octave, interval);
 
             var pos = {
-                x: position.x + Math.floor(filterDim.width / 2),
-                y: position.y + Math.floor(filterDim.height / 2)
+                x: position.x,// + Math.floor(filterDim.width / 2),
+                y: position.y// + Math.floor(filterDim.height / 2)
             };
 
             var convolvesum = 0;
@@ -687,7 +691,7 @@
         function getDetBag(octave) {
             var dim = hessF.getFilterDimensions(octave);
             var detBag = createArray(integralData.width * integralData.height, null);
-            var offset = 0;// Math.floor(dim.width / 2);
+            var offset = dim.width;// Math.ceil(dim.width / 2);
             for (var i = offset ; i < integralData.width - offset ; i++) {
                 for (var j = offset ; j < integralData.height - offset ; j++) {
                     var res = hessF.determinant(integralData, { x: i, y: j }, octave);
@@ -749,7 +753,7 @@
         }
 
         var bags = [];
-        for (var i = 1; i < 8; i++) {
+        for (var i = 1; i < 4; i++) {
             bags.push(getDetBag(i));
         }
         var dim = hessF.getFilterDimensions(bags.length - 1)
@@ -767,12 +771,12 @@
             for (var j = 0; j < integralData.height ; j++) {
                 var res = nonMaximalSuppression(i, j, integralData, bags);
                 if (res) {
-                    drawCircle(getCanvas('greycanvas'), { x: i, y: j }, Math.max(1, 100 * scaleF(res, deteminantExtrenum.max, deteminantExtrenum.min)));
+                    drawCircle(getCanvas('greycanvas'), { x: i, y: j }, 1 || Math.max(1, 10 * scaleF(res, deteminantExtrenum.max, deteminantExtrenum.min)));
                 }
             }
         }
         var tempd = {
-            data: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            data: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             width: 4,
             height: 4
         };
