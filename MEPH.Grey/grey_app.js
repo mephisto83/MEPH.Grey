@@ -734,8 +734,9 @@
             return detBag;
         }
 
-        function nonMaximalSuppression(i, j, integralData, bags) {
+        function nonMaximalSuppression(i, j, integralData, bags, options) {
             var detBag;
+            options = options || {};
             //bags.forEach(function (detBag) {
             for (var k = 1; k < bags.length - 1 ; k++) {
                 detBag = bags[k];
@@ -752,7 +753,7 @@
                         res > detBag[(i + 1) + (j - 1) * integralData.width] &&
                         res > detBag[(i + 1) + (j) * integralData.width] &&
 
-                        res > udetBag[(i - 1) + (j - 1) * integralData.width] &&
+                        (options.skipSup || res > udetBag[(i - 1) + (j - 1) * integralData.width] &&
                         res > udetBag[(i - 1) + (j) * integralData.width] &&
                         res > udetBag[(i - 1) + (j + 1) * integralData.width] &&
                         res > udetBag[(i) + (j - 1) * integralData.width] &&
@@ -760,9 +761,9 @@
                         res > udetBag[(i) + (j + 1) * integralData.width] &&
                         res > udetBag[(i + 1) + (j + 1) * integralData.width] &&
                         res > udetBag[(i + 1) + (j - 1) * integralData.width] &&
-                        res > udetBag[(i + 1) + (j) * integralData.width] &&
+                        res > udetBag[(i + 1) + (j) * integralData.width]) &&
 
-                        res > ddetBag[(i - 1) + (j - 1) * integralData.width] &&
+                        (options.skipSup || res > ddetBag[(i - 1) + (j - 1) * integralData.width] &&
                         res > ddetBag[(i - 1) + (j) * integralData.width] &&
                         res > ddetBag[(i - 1) + (j + 1) * integralData.width] &&
                         res > ddetBag[(i) + (j - 1) * integralData.width] &&
@@ -770,7 +771,7 @@
                         res > ddetBag[(i) + (j + 1) * integralData.width] &&
                         res > ddetBag[(i + 1) + (j + 1) * integralData.width] &&
                         res > ddetBag[(i + 1) + (j - 1) * integralData.width] &&
-                        res > ddetBag[(i + 1) + (j) * integralData.width]) {
+                        res > ddetBag[(i + 1) + (j) * integralData.width])) {
                         return res;
                     }
                 }
@@ -796,7 +797,7 @@
         writeTime(start, 'starting non maximal suppression ');
         for (var i = 0; i < integralData.width ; i++) {
             for (var j = 0; j < integralData.height ; j++) {
-                var res = nonMaximalSuppression(i, j, integralData, bags);
+                var res = nonMaximalSuppression(i, j, integralData, bags, options);
                 if (res) {
                     if (options.draw) {
                         drawCircle(getCanvas('greycanvas'), { x: i, y: j }, Math.max(1, 10 * scaleF(res, deteminantExtrenum.max, deteminantExtrenum.min)));
@@ -822,7 +823,7 @@
     var notrun = true;
     document.querySelector('[runbtn]').addEventListener('click', function () {
         if (notrun) {
-            run({ draw: true });
+            run({ draw: true, skipSup: true, skipSub: true });
             notrun = false;
         }
     });
