@@ -542,8 +542,17 @@
             });
         }
     }
-
-    var run = function () {
+    var computeGreyIntegral = function () {
+        var image = getTestImage();
+        var canvas = drawToSketch(image);
+        var data = getSketchData(canvas);
+        var greyData = convertToGrey(data);
+        var start = Date.now();
+        var integralData = computeIntegralImage(greyData);
+        var end = Date.now();
+        console.log('compute time ' + (end - start));
+    };
+    var detectInterestPoints = function () {
         var image = getTestImage();
         var canvas = drawToSketch(image);
         var data = getSketchData(canvas);
@@ -551,25 +560,45 @@
         var greyData = convertToGrey(data);
         var greyCanvas = getGreyCanvas();
         drawGreyToSketch(greyData, greyCanvas);
+        var integralData = computeIntegralImage(greyData);
 
-        var mul = 21;
-        var sig = mul * .84089642;
-        var size = mul * 7;
-        var sampleSize = 8;
-        var res = getGaussianFilter(size, size, sig, false);
+        var hessF = fastHessian();
+    };
+    var writeTime = function (time, what) {
+        console.log(what + ' ' + ((Date.now() - time) / 1000));
+    }
+    var run = function (options) {
+        options = options || {}
+        var start = Date.now();
+        var image = getTestImage();
+        writeTime(start, 'got the test image ');
+        var canvas = drawToSketch(image);
+        writeTime(start, 'dre sketch ');
+        var data = getSketchData(canvas);
 
-        var gausSum = sum(res);
-        res.forEach(function (t, i) {
-            res[i] = res[i] / gausSum;
-        });
+        var greyData = convertToGrey(data);
+        writeTime(start, 'converted to grey');
+        var greyCanvas = getGreyCanvas();
+        drawGreyToSketch(greyData, greyCanvas);
 
-        var samp = sample(res, size, size, sampleSize, sampleSize);
-        samp.forEach(function (t, i) {
-            samp[i] = t * 255;
-        });
+        //var mul = 21;
+        //var sig = mul * .84089642;
+        //var size = mul * 7;
+        //var sampleSize = 8;
+        //var res = getGaussianFilter(size, size, sig, false);
 
-        console.log(res);
-        var todraw = discreteScale(samp, sampleSize, sampleSize, size, size);
+        //var gausSum = sum(res);
+        //res.forEach(function (t, i) {
+        //    res[i] = res[i] / gausSum;
+        //});
+
+        //var samp = sample(res, size, size, sampleSize, sampleSize);
+        //samp.forEach(function (t, i) {
+        //    samp[i] = t * 255;
+        //});
+
+        //console.log(res);
+        //var todraw = discreteScale(samp, sampleSize, sampleSize, size, size);
 
         //draw({
         //    height: size,
@@ -611,7 +640,7 @@
         //});
         //var filter = getGaussianFilter(sig * 6, sig * 6, sig);
         var integralData = computeIntegralImage(greyData);
-
+        writeTime(start, 'computed integral ');
         var hessF = fastHessian();
         //console.log(hessF.getFilterDimensions());
         //for (var i = 1; i < 4; i++) {
@@ -686,7 +715,7 @@
         //    draw(imageData);
         //});
 
-        var minZero = 1100;
+        var minZero = 1000;
         var deteminantExtrenum = { max: 0, min: minZero };
         function getDetBag(octave) {
             var dim = hessF.getFilterDimensions(octave);
@@ -696,11 +725,8 @@
                 for (var j = offset ; j < integralData.height - offset ; j++) {
                     var res = hessF.determinant(integralData, { x: i, y: j }, octave);
                     if (deteminantExtrenum.max < res) {
-                        //if (res > 6736) {
-                        //    debugger
-                        //}
                         deteminantExtrenum.max = res;
-                        deteminantExtrenum.max = Math.min(res, 5000);
+                        //       deteminantExtrenum.max = Math.min(res, 5000);
                     }
                     detBag[i + j * integralData.width] = res;
                 }
@@ -767,33 +793,45 @@
         var scaleF = function (t, max, min) {
             return (t - min) / (max - min);
         }
+        writeTime(start, 'starting non maximal suppression ');
         for (var i = 0; i < integralData.width ; i++) {
             for (var j = 0; j < integralData.height ; j++) {
                 var res = nonMaximalSuppression(i, j, integralData, bags);
                 if (res) {
-                    drawCircle(getCanvas('greycanvas'), { x: i, y: j }, 1 || Math.max(1, 10 * scaleF(res, deteminantExtrenum.max, deteminantExtrenum.min)));
+                    if (options.draw) {
+                        drawCircle(getCanvas('greycanvas'), { x: i, y: j }, Math.max(1, 10 * scaleF(res, deteminantExtrenum.max, deteminantExtrenum.min)));
+                    }
                 }
             }
         }
-        var tempd = {
-            data: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            width: 4,
-            height: 4
-        };
-        var itempd = computeIntegralImage(tempd);
-        var val = hessF.getIntegralValue(itempd, {
-            x: 0, y: 0
-        }, {
-            x: 3, y: 1
-        });
-        var pixel = getPixel(0, 0, integralData.data, integralData.width);
+        writeTime(start, 'completed non maximal supression');
+        //var tempd = {
+        //    data: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        //    width: 4,
+        //    height: 4
+        //};
+        //var itempd = computeIntegralImage(tempd);
+        //var val = hessF.getIntegralValue(itempd, {
+        //    x: 0, y: 0
+        //}, {
+        //    x: 3, y: 1
+        //});
+        //var pixel = getPixel(0, 0, integralData.data, integralData.width);
 
     };
     var notrun = true;
     document.querySelector('[runbtn]').addEventListener('click', function () {
         if (notrun) {
-            run();
+            run({ draw: true });
             notrun = false;
+        }
+    });
+
+    var notruncompute = true;
+    document.querySelector('[compute]').addEventListener('click', function () {
+        if (notruncompute) {
+            computeGreyIntegral();
+            notruncompute = false;
         }
     });
 })(window);
