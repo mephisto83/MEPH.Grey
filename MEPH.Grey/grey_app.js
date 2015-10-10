@@ -719,19 +719,26 @@
         var deteminantExtrenum = { max: 0, min: minZero };
         function getDetBag(octave) {
             var dim = hessF.getFilterDimensions(octave);
-            var detBag = createArray(integralData.width * integralData.height, null);
+            var bagStep = Math.floor(dim.width / 2);
+            var bagWidth = Math.floor(integralData.width / bagStep);
+            var bagHeight = Math.floor(integralData.height / bagStep);
+            var detBag = createArray(bagWidth * bagHeight, null);
             var offset = dim.width;// Math.ceil(dim.width / 2);
-            for (var i = offset ; i < integralData.width - offset ; i++) {
-                for (var j = offset ; j < integralData.height - offset ; j++) {
+            for (var i = offset ; i < integralData.width - offset ; i = bagStep + i) {
+                for (var j = offset ; j < integralData.height - offset ; j = bagStep + j) {
                     var res = hessF.determinant(integralData, { x: i, y: j }, octave);
                     if (deteminantExtrenum.max < res) {
                         deteminantExtrenum.max = res;
                         //       deteminantExtrenum.max = Math.min(res, 5000);
                     }
-                    detBag[i + j * integralData.width] = res;
+                    detBag[Math.floor(i / bagStep) + Math.floor(j / bagStep) * bagWidth] = res;
                 }
             }
-            return detBag;
+            return {
+                width: bagWidth,
+                data: detBag,
+                height: bagHeight
+            };
         }
 
         function nonMaximalSuppression(i, j, integralData, bags, options) {
@@ -780,9 +787,25 @@
         }
 
         var bags = [];
-        for (var i = 1; i < 4; i++) {
+        for (var i = 2; i < 4; i++) {
             bags.push(getDetBag(i));
         }
+        //bags.forEach(function (bag) {
+        //    var canvas = document.createElement('canvas');
+        //    document.body.appendChild(canvas);
+        //    var temp = new Uint8Array(integralData.width * integralData.height);
+        //    bag.forEach(function (t, i) {
+        //        //var x = i % integralData.width;
+        //        //var y = Math.floor(i / integralData.width);
+        //        temp[i] = (t / deteminantExtrenum.max) * 255;
+        //    });
+        //    draw({
+        //        width: integralData.width,
+        //        height: integralData.height,
+        //        data: temp,
+        //        canvas: canvas
+        //    })
+        //})
         var dim = hessF.getFilterDimensions(bags.length - 1)
         //for (var i = dim.width; i < integralData.width - dim.width; i++) {
         //    for (var j = dim.height ; j < integralData.height - dim.height; j++) {
@@ -795,16 +818,16 @@
             return (t - min) / (max - min);
         }
         writeTime(start, 'starting non maximal suppression ');
-        for (var i = 0; i < integralData.width ; i++) {
-            for (var j = 0; j < integralData.height ; j++) {
-                var res = nonMaximalSuppression(i, j, integralData, bags, options);
-                if (res) {
-                    if (options.draw) {
-                        drawCircle(getCanvas('greycanvas'), { x: i, y: j }, Math.max(1, 10 * scaleF(res, deteminantExtrenum.max, deteminantExtrenum.min)));
-                    }
-                }
-            }
-        }
+        //for (var i = 0; i < integralData.width ; i++) {
+        //    for (var j = 0; j < integralData.height ; j++) {
+        //        var res = nonMaximalSuppression(i, j, integralData, bags, options);
+        //        if (res) {
+        //            if (options.draw) {
+        //                drawCircle(getCanvas('greycanvas'), { x: i, y: j }, Math.max(1, 10 * scaleF(res, deteminantExtrenum.max, deteminantExtrenum.min)));
+        //            }
+        //        }
+        //    }
+        //}
         writeTime(start, 'completed non maximal supression');
         //var tempd = {
         //    data: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
